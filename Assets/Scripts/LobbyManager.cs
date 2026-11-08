@@ -5,6 +5,7 @@ using Fusion.Sockets;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Photon.Realtime;
 
 public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 {
@@ -21,6 +22,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
     [SerializeField] private TMP_Dropdown lobbyDropdown;
     [SerializeField] private Button joinLobbyButton;
     [SerializeField] private TMP_Text statusText;
+    [SerializeField] private TMP_InputField playerNameInput;
 
     [Header("Create room UI")]
     [SerializeField] private TMP_InputField roomNameInput;
@@ -45,6 +47,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
     private NetworkRunner _runner;
     private ConnectionState _state = ConnectionState.NotConnected;
     private string _currentLobbyName;
+    private AuthenticationValues _authValues;
 
     private void Start()
     {
@@ -61,12 +64,23 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
     //connects to the lobby selected in the dropdown
     private async void JoinSelectedLobby()
     {
+        string playerName = playerNameInput.text.Trim();
+
+        if (string.IsNullOrEmpty(playerName))
+        {
+            statusText.text = "Enter your name";
+            return;
+        }
+
+        //the random part keeps the ID unique when two players pick the same name
+        _authValues = new AuthenticationValues { UserId = $"{playerName}#{Guid.NewGuid().ToString("N").Substring(0, 6)}" };
         _currentLobbyName = lobbyNames[lobbyDropdown.value];
+
         SetState(ConnectionState.Connecting, $"Connecting to {_currentLobbyName}...");
 
         CreateRunner();
 
-        StartGameResult result = await _runner.JoinSessionLobby(SessionLobby.Custom, _currentLobbyName);
+        StartGameResult result = await _runner.JoinSessionLobby(SessionLobby.Custom, _currentLobbyName, _authValues);
 
         if (result.Ok)
         {
@@ -125,6 +139,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
             SessionName = roomName,
             PlayerCount = maxPlayers,
             CustomLobbyName = _currentLobbyName,
+            AuthValues = _authValues,
             OnGameStarted = OnRoomStarted
         });
 
@@ -180,6 +195,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 
         lobbyDropdown.interactable = canJoinLobby;
         joinLobbyButton.interactable = canJoinLobby;
+        playerNameInput.interactable = canJoinLobby;
 
         roomNameInput.interactable = canUseRooms;
         maxPlayersInput.interactable = canUseRooms;
@@ -228,7 +244,11 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
             }
 
             string suffix = player == runner.LocalPlayer ? " (You)" : "";
-            lines.Add($"Player ID: {player.PlayerId}{suffix}");
+            //the name is the part of the user ID before the random code
+            string userId = runner.GetPlayerUserId(player);
+            int separator = userId != null ? userId.LastIndexOf('#') : -1;
+            string name = separator > 0 ? userId.Substring(0, separator) : $"Player {player.PlayerId}";
+            lines.Add($"{name}{suffix}");
         }
 
         playerListText.text = $"Players ({lines.Count}/{runner.SessionInfo.MaxPlayers})\n\n{string.Join("\n", lines)}";
