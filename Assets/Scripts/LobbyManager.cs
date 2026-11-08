@@ -58,7 +58,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         SetState(ConnectionState.NotConnected, "Not connected");
     }
 
-    //Connects to the lobby selected in the dropdown
+    //connects to the lobby selected in the dropdown
     private async void JoinSelectedLobby()
     {
         _currentLobbyName = lobbyNames[lobbyDropdown.value];
@@ -84,7 +84,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
-    //Checks the input before creating the room
+    //checks the input before creating the room
     private void CreateRoom()
     {
         string roomName = roomNameInput.text.Trim();
@@ -101,20 +101,24 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
             return;
         }
 
-        if (_sessions.Exists(session => session.Name == roomName))
+        //room names are unique across all lobbies so the lobby name is added to keep them separate
+        //so same room name can be made in different lobbies
+        string sessionName = $"{_currentLobbyName}: {roomName}";
+
+        if (_sessions.Exists(session => session.Name == sessionName))
         {
             statusText.text = $"A room named {roomName} already exists";
             return;
         }
 
-        StartRoom(roomName, maxPlayers);
+        StartRoom(sessionName, maxPlayers);
     }
 
     private async void StartRoom(string roomName, int? maxPlayers)
     {
         SetState(ConnectionState.Connecting, $"Connecting to room {roomName}...");
 
-        //CustomLobbyName links the room to the current lobby so other players in that lobby can see it
+        //customLobbyName links the room to the current lobby so other players in that lobby can see it
         StartGameResult result = await _runner.StartGame(new StartGameArgs
         {
             GameMode = GameMode.Shared,
@@ -143,7 +147,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         await _runner.Shutdown();
     }
 
-    //A NetworkRunner can't be reused after it shuts down so each connection gets a new one
+    //a networkrunner can't be reused after it shuts down so each connection gets a new one
     private void CreateRunner()
     {
         GameObject runnerObject = new GameObject("NetworkRunner");
@@ -153,7 +157,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
 
     private void SetState(ConnectionState state, string message)
     {
-        //Fusion can report a shutdown after Unity has already destroyed the UI
+        //fausion can report a shutdown after Unity has already destroyed the UI
         if (statusText == null)
         {
             return;
@@ -184,7 +188,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         leaveRoomButton.interactable = _state == ConnectionState.InRoom;
     }
 
-    //Rebuilds the room list from the latest sessions
+    //rebuilds the room list from the latest sessions
     private void RefreshRoomList()
     {
         foreach (Button row in _roomRows)
@@ -198,7 +202,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         {
             Button row = Instantiate(roomRowTemplate, roomListContent);
             row.gameObject.SetActive(true);
-            //Each row is cloned at runtime so its label can only be reached through the clone
+            //each row is cloned at runtime so its label can only be reached through the clone
             row.GetComponentInChildren<TMP_Text>().text = $"{session.Name} ({session.PlayerCount}/{session.MaxPlayers})";
 
             bool roomHasSpace = session.IsOpen && session.PlayerCount < session.MaxPlayers;
@@ -211,7 +215,7 @@ public class LobbyManager : MonoBehaviour, INetworkRunnerCallbacks
         }
     }
 
-    //The leaving player is skipped because ActivePlayers can still include them
+    //the leaving player is skipped because ActivePlayers can still include them
     private void UpdatePlayerList(NetworkRunner runner, PlayerRef? playerWhoLeft = null)
     {
         List<string> lines = new List<string>();
